@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 @dataclass
@@ -21,3 +21,19 @@ class MicroClip:
     description: str
     voice_style_prompt: str
     tts_sync_script: List[TTSScriptLine]
+
+@dataclass
+class SocialMediaCaption:
+    hook: str = "Caption generation failed. Please check logs."
+    value: str = ""
+    cta: str = ""
+    hashtags: str = ""
+
+@dataclass
+class PinnedComment:
+    text: str = "Comment generation failed."
+
+@dataclass
+class MarketingPackage:
+    social_media_caption: SocialMediaCaption = field(default_factory=SocialMediaCaption)
+    pinned_comment: PinnedComment = field(default_factory=PinnedComment)

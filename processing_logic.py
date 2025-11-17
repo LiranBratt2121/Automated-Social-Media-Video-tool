@@ -5,6 +5,7 @@ import sys
 import subprocess
 from typing import Callable
 
+from core.ai.marketing_generator import generate_and_save_content_package
 from core.ai.video_analyzer import HMMSS_time_to_seconds, generate_micro_clips
 from core.editor.subtitles_editor import burn_tts_subtitles
 from core.editor.video_editor import combine_videos, cut_video, save_video_to_file
@@ -126,14 +127,9 @@ def process_video_from_url(amazon_url: str, progress_callback: Callable):
 
         save_video_to_file(full_video, video_filename)
 
-        # Save AI descriptions to a text file
-        with open(text_filename, 'w', encoding='utf-8') as f:
-            f.write("--- 💡 AI Generated Video Ideas ---\n\n")
-            for i, clip in enumerate(micro_clips):
-                f.write(f"Clip {i+1}: {clip.clip_title}\n")
-                f.write(f"Description: {clip.description}\n")
-                f.write(f"Script: {' '.join([line.text for line in clip.tts_sync_script])}\n\n")
-        
+        progress_callback(97, 100, "Generating social media copy...")
+        generate_and_save_content_package(micro_clips=micro_clips, output_filename=text_filename)
+
         show_file_in_explorer(video_filename)
         progress_callback(100, 100, f"Complete! Saved as {video_filename}")
 
