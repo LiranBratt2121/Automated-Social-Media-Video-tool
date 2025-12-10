@@ -44,28 +44,45 @@ def sanitize_filename(filename: str) -> str:
     """Removes illegal characters from a string to make it a valid filename."""
     return re.sub(r'[\\/*?:"<>|]', "", filename)
 
-def process_video_from_url(amazon_url: str, progress_callback: Callable):
+def process_video(input_source: str, progress_callback: Callable):
     """
-    The main video processing pipeline, refactored to accept a URL and report progress.
+    The main video processing pipeline.
+    Accepts either an Amazon URL or a local file path.
     """
     try:
-        # --- Step 1: Downloading ---
-        progress_callback(0, 100, "Fetching download link from Amazon...")
-        download_link = get_m3u8_links(amazon_url)[0]
-        if not download_link:
-            progress_callback(0, 100, "Error: Could not find video link.")
-            return
+        source_video_path = "input.mp4"
 
-        progress_callback(5, 100, f"Got link! Downloading video...")
-        download_video(download_link, "input.mp4")
-        progress_callback(15, 100, "Download complete!")
+        # --- Step 1: Input Handling (Download or Local File) ---
+        if os.path.exists(input_source) and os.path.isfile(input_source):
+            # >> LOCAL FILE PATH
+            progress_callback(10, 100, f"Local file detected: {os.path.basename(input_source)}")
+            source_video_path = input_source
+        else:
+            # >> AMAZON URL
+            progress_callback(0, 100, "Fetching download link from Amazon...")
+            download_links = get_m3u8_links(input_source)
+            
+            if not download_links:
+                progress_callback(0, 100, "Error: Could not find video link or invalid URL.")
+                return
+            
+            download_link = download_links[0]
+            progress_callback(5, 100, f"Got link! Downloading video...")
+            download_video(download_link, source_video_path)
+            progress_callback(15, 100, "Download complete!")
 
         # --- Step 2: Compression & AI Analysis ---
         progress_callback(15, 100, "Compressing video for analysis...")
-        compressed_video_bytes = compress_with_crop("input.mp4", "output_crop.mp4")
+        
+        # We output the crop to a temporary file
+        output_crop_path = "output_crop.mp4"
+        
+        # Note: Depending on your compress_with_crop implementation, 
+        # ensure it handles spaces in filenames if source_video_path has them.
+        compressed_video_bytes = compress_with_crop(source_video_path, output_crop_path)
         
         progress_callback(25, 100, "Analyzing video with AI...")
-        micro_clips = generate_micro_clips("output_crop.mp4")
+        micro_clips = generate_micro_clips(output_crop_path)
         if not micro_clips:
             progress_callback(0, 100, "Error: AI analysis failed.")
             return
@@ -79,9 +96,10 @@ def process_video_from_url(amazon_url: str, progress_callback: Callable):
             base_progress = 35 + (idx * progress_step)
             progress_callback(base_progress, 100, f"Processing Clip {idx+1}/{total_clips}: '{clip.clip_title}'")
             
-            # (The internal logic for processing a single clip remains the same)
             clip_start = HMMSS_time_to_seconds(clip.start_time)
             clip_end = HMMSS_time_to_seconds(clip.end_time)
+            
+            # Reset buffer pointer and clone for cutting
             compressed_video_bytes.seek(0)
             cloned_bytes = io.BytesIO(compressed_video_bytes.getvalue())
             clip_cut = cut_video(cloned_bytes, clip_start, clip_end)
@@ -134,6 +152,8 @@ def process_video_from_url(amazon_url: str, progress_callback: Callable):
         progress_callback(100, 100, f"Complete! Saved as {video_filename}")
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         error_message = f"An error occurred: {e}"
         print(error_message)
         progress_callback(0, 100, error_message)
